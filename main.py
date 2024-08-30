@@ -2,7 +2,7 @@ from langchain_ollama import OllamaLLM # type: ignore
 from langchain_core.prompts import ChatPromptTemplate # type: ignore
 from langchain_community.document_loaders.pdf import PyPDFDirectoryLoader # type: ignore
 from langchain_community.document_loaders.pdf import PyPDFLoader  # type: ignore
-from langchain_community.vectorstores.chroma import Chroma # type: ignore
+from langchain_chroma import Chroma # type: ignore
 from langchain_community.embeddings.ollama import OllamaEmbeddings # type: ignore
 from langchain_text_splitters import RecursiveCharacterTextSplitter # type: ignore
 from langchain_community.embeddings.ollama import OllamaEmbeddings # type: ignore
@@ -23,20 +23,27 @@ prompt = ChatPromptTemplate.from_template(template)
 model = OllamaLLM(model="gemma2:2b")
 chain = prompt | model
 
-def embed():
-    embeddings = OllamaEmbeddings(model="mxbai-embed-large")
-    return embeddings
+embedTemplate = """
+"Answer the question using the following information: {result}
+Question: {userInput}"
+"""
+embedPrompt = ChatPromptTemplate.from_template(embedTemplate)
+embedChain = embedPrompt | model
 
 #Set up embedding database
-embeddingModel = OllamaEmbeddings()
-vectorDB = Chroma(embedding_function=embed)
+embedding_model = OllamaEmbeddings(model="mxbai-embed-large")
+vectorDB = Chroma(embedding_function=embedding_model)
 
 
 def loadDocuments(path):
     loader = PyPDFLoader(path)
-    docs = loader.load_and_split()
-    vectorDB.add(docs)
-    return docs
+    docs = loader.load_and_split() 
+    vectorDB.add_texts([doc.page_content for doc in docs])
+    userInput = "when can you activate a trap card"
+    results = vectorDB.similarity_search(userInput)
+    aiOutput = embedChain.invoke({"result": results, "userInput": userInput})
+    print(aiOutput)
+    return aiOutput
 
 #Handles the AI prompting. Args is needed as it is passed in when bind is used.
 def handleConversation(*args): 
