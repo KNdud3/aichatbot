@@ -31,7 +31,9 @@ embedChain = embedPrompt | model
 embedding_model = OllamaEmbeddings(model="mxbai-embed-large")
 vectorDB = Chroma(embedding_function=embedding_model)
 
+pdfMode = False
 
+#Loads a PDF into the embeddings database
 def loadDocuments():
     global history
     path = filedialog.askopenfilename(
@@ -40,28 +42,31 @@ def loadDocuments():
     loader = PyPDFLoader(path)
     docs = loader.load_and_split() 
     vectorDB.add_texts([doc.page_content for doc in docs])
-    userInput = "when can you activate a trap card"
-    results = vectorDB.similarity_search(userInput)
-    aiOutput = embedChain.invoke({"result": results, "userInput": userInput})
-    history += "\n User: "+ userInput+" \n AI: " + aiOutput
+    history += "\n User uploaded a PDF"
     changeTextBox(history)
-
 
 #Handles the AI prompting. Args is needed as it is passed in when bind is used.
 def handleConversation(*args): 
     global history
-    enterButton.state(['disabled']) 
+    enterButton.state(['disabled'])  # prevent spamming
     userInput = prompt.get()
-    aiOutput = chain.invoke({"history": history, "question": userInput})
+    if pdfMode.get():
+        results = vectorDB.similarity_search(userInput)
+        aiOutput = embedChain.invoke({"result": results, "userInput": userInput})
+    else:
+        aiOutput = chain.invoke({"history": history, "question": userInput})
     history += "\n User: "+ userInput+" \n AI: " + aiOutput
     changeTextBox(history)
 
+#Changes the context of 
 def changeTextBox(String):
     outputText.config(state=NORMAL)  
     outputText.delete(1.0, END)  
     outputText.insert(END, String)  
     outputText.config(state=DISABLED)  
-    enterButton.state(['!disabled']) 
+    enterButton.state(['!disabled']) #Only used for handleConversation history as that can use enter button to run
+
+# Widgets and main loop set-up
 
 root = Tk()
 root.geometry("800x600")
@@ -93,10 +98,14 @@ outputText['yscrollcommand'] = scrollbar.set
 enterButton = ttk.Button(mainframe, text="Enter", command=handleConversation)
 enterButton.grid(column=3, row=3, sticky=W)
 
+pdfMode = BooleanVar()
+check = ttk.Checkbutton(mainframe, variable=pdfMode, text='Use PDFs to answer questions', onvalue=True, offvalue=False)
+check.grid(column=4, row=4, sticky=W)
+
 pdfButton = ttk.Button(mainframe, text="pdf", command= loadDocuments) #Lambda function needed as command takes a partial function
 pdfButton.grid(column=4, row=3, sticky=W)
 
-for child in mainframe.winfo_children(): 
+for child in mainframe.winfo_children():  #Creates gaps between widgets
     child.grid_configure(padx=5, pady=5)
 promptEntry.focus()
 root.bind("<Return>", handleConversation) #Enter key works the same as enterButton
