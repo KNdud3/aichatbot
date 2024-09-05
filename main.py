@@ -1,14 +1,11 @@
 from langchain_ollama import OllamaLLM # type: ignore
 from langchain_core.prompts import ChatPromptTemplate # type: ignore
-from langchain_community.document_loaders.pdf import PyPDFDirectoryLoader # type: ignore
 from langchain_community.document_loaders.pdf import PyPDFLoader  # type: ignore
 from langchain_chroma import Chroma # type: ignore
 from langchain_community.embeddings.ollama import OllamaEmbeddings # type: ignore
-from langchain_text_splitters import RecursiveCharacterTextSplitter # type: ignore
-from langchain_community.embeddings.ollama import OllamaEmbeddings # type: ignore
 from tkinter import *
+from tkinter import filedialog 
 from tkinter import ttk
-
 
 #Ai prompting set-up
 template = """
@@ -35,15 +32,20 @@ embedding_model = OllamaEmbeddings(model="mxbai-embed-large")
 vectorDB = Chroma(embedding_function=embedding_model)
 
 
-def loadDocuments(path):
+def loadDocuments():
+    global history
+    path = filedialog.askopenfilename(
+        title="Select a PDF file",
+        filetypes=[("PDF files", "*.pdf")])
     loader = PyPDFLoader(path)
     docs = loader.load_and_split() 
     vectorDB.add_texts([doc.page_content for doc in docs])
     userInput = "when can you activate a trap card"
     results = vectorDB.similarity_search(userInput)
     aiOutput = embedChain.invoke({"result": results, "userInput": userInput})
-    print(aiOutput)
-    return aiOutput
+    history += "\n User: "+ userInput+" \n AI: " + aiOutput
+    changeTextBox(history)
+
 
 #Handles the AI prompting. Args is needed as it is passed in when bind is used.
 def handleConversation(*args): 
@@ -52,10 +54,12 @@ def handleConversation(*args):
     userInput = prompt.get()
     aiOutput = chain.invoke({"history": history, "question": userInput})
     history += "\n User: "+ userInput+" \n AI: " + aiOutput
+    changeTextBox(history)
 
-    outputText.config(state=NORMAL)  # Enable text editing to change text
+def changeTextBox(String):
+    outputText.config(state=NORMAL)  
     outputText.delete(1.0, END)  
-    outputText.insert(END, history)  
+    outputText.insert(END, String)  
     outputText.config(state=DISABLED)  
     enterButton.state(['!disabled']) 
 
@@ -72,7 +76,6 @@ root.rowconfigure(0, weight=1)
 label = ttk.Label(mainframe, text='Ask the AI')
 label.grid(column=1,row=3, sticky=(W, E))
 
-
 prompt = StringVar()
 promptEntry = ttk.Entry(mainframe, width=50, textvariable=prompt)
 promptEntry.grid(column=2, row=3, sticky=(W, E))
@@ -87,11 +90,10 @@ scrollbar = ttk.Scrollbar(mainframe, orient=VERTICAL, command=outputText.yview)
 scrollbar.grid(column=3, row=4, sticky=(N, S))
 outputText['yscrollcommand'] = scrollbar.set
 
-
 enterButton = ttk.Button(mainframe, text="Enter", command=handleConversation)
 enterButton.grid(column=3, row=3, sticky=W)
 
-pdfButton = ttk.Button(mainframe, text="pdf", command=lambda: loadDocuments("./Documents/ygorules.pdf")) #Lambda function needed as command takes a partial function
+pdfButton = ttk.Button(mainframe, text="pdf", command= loadDocuments) #Lambda function needed as command takes a partial function
 pdfButton.grid(column=4, row=3, sticky=W)
 
 for child in mainframe.winfo_children(): 
